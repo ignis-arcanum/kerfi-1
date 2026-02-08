@@ -53,7 +53,8 @@ class AutoPullTester:
         self.log("Checking for miniforge3 environment...")
         conda_prefix = os.environ.get("CONDA_PREFIX", "")
         
-        if "miniforge3" in conda_prefix.lower():
+        # Check if conda_prefix contains miniforge3 as a directory component
+        if conda_prefix and ("/miniforge3/" in conda_prefix or conda_prefix.endswith("/miniforge3")):
             self.log(f"✓ Running in miniforge3 environment: {conda_prefix}")
             return True
         else:
@@ -79,7 +80,7 @@ class AutoPullTester:
             
     def check_remote_updates(self):
         """Check if there are remote updates available."""
-        self.log("Fetching remote updates...")
+        self.log("Checking remote updates...")
         try:
             subprocess.run(
                 ["git", "fetch"],
@@ -88,6 +89,18 @@ class AutoPullTester:
                 text=True,
                 check=True
             )
+            
+            # Check if upstream tracking branch exists
+            check_upstream = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "@{u}"],
+                cwd=self.repo_path,
+                capture_output=True,
+                text=True
+            )
+            
+            if check_upstream.returncode != 0:
+                self.log("⚠ No upstream tracking branch configured")
+                return False
             
             result = subprocess.run(
                 ["git", "rev-list", "HEAD...@{u}", "--count"],
@@ -141,8 +154,8 @@ class AutoPullTester:
                 self.log("✓ Autopull simulation successful")
                 return True
             else:
-                self.log(f"⚠ Autopull simulation completed with warnings")
-                return True
+                self.log(f"✗ Autopull simulation failed with return code: {result.returncode}")
+                return False
                 
         except subprocess.CalledProcessError as e:
             self.log(f"✗ Autopull simulation failed: {e}")
